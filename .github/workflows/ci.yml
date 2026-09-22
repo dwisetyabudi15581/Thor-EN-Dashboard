@@ -1,0 +1,39 @@
+# ============================================
+# CI Pipeline — auto-run on every push & PR
+# ============================================
+# Prevents merging code that breaks the dashboard production build.
+#
+# v4.1.0: THIS REPOSITORY IS THE WEB DASHBOARD ONLY (standalone repo, born
+# from the Thor-EN repository split). The Discord bot has its own repository
+# (Thor-EN) with its own CI (lint + unit tests).
+# ============================================
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  dashboard:
+    name: Dashboard — Production build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🟢 Setup Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+
+      - name: 📦 Install dependencies
+        run: npm ci
+
+      - name: 🏗️ Build (prisma generate + next build)
+        run: npm run build
