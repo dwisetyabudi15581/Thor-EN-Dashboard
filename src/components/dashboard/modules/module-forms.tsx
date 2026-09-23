@@ -131,6 +131,12 @@ export function GeneralModule({ draft, meta, setConfig, setAutoroleRoleIds, call
         <Field label="Bot Admin Role" hint="Holders of this role can use every admin command on this server.">
           <RoleSelect value={c.roles.admin ?? null} onChange={(v) => setConfig("roles.admin", v)} roles={meta.roles} />
         </Field>
+        {/* v4.4.0: the Verified role (CHRONOS parity, Tahap 2) — set by the
+            verification wizard too; while set, tickets & escrow accept
+            verified members only (≙ /set-role verified). */}
+        <Field label="Verified Role" hint="Granted by the verification panel button. While set, tickets & escrow accept verified members only (≙ /set-role verified).">
+          <RoleSelect value={c.roles.verified ?? null} onChange={(v) => setConfig("roles.verified", v)} roles={meta.roles} />
+        </Field>
       </Section>
 
       <Section title="Auto-Role on Join" desc="Roles granted automatically to every new member (≙ /set-autorole, max 10). Turn the toggle below on if you want them gone once the member gets another role.">

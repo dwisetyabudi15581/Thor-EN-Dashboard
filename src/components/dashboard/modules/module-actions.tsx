@@ -8,7 +8,7 @@
 // DASH API, followed by refresh() to pull the payload from the bot again.
 
 import { useState } from "react";
-import { Plus, Trash2, Loader2, RefreshCw, Clock, ExternalLink } from "lucide-react";
+import { Plus, Trash2, Loader2, RefreshCw, Clock, ExternalLink, Pencil } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Field, Section, TextInput, TextArea, Toggle, Select, ChannelSelect, RoleSelect, MentionSelect, Pill, channelLabel, roleLabel as roleLabelFn,
@@ -179,6 +179,11 @@ export function SelfRolesModule({ draft, meta, call, refresh, toast }: ModuleAct
   const [verifyChannelId, setVerifyChannelId] = useState<string | null>(null);
   const [verifyLabel, setVerifyLabel] = useState("Verify Me");
   const [verifyBusy, setVerifyBusy] = useState(false);
+  // v4.4.0: restyle the LIVE verify button (PUT selfroles/:id with roles —
+  // /set-verify-button parity from the web).
+  const [btnOpen, setBtnOpen] = useState(false);
+  const [btnEdit, setBtnEdit] = useState({ label: "", emoji: "", style: "Success" });
+  const [btnBusy, setBtnBusy] = useState(false);
 
   // The installed verification panel (config.roles.verifyPanelId → live panel).
   const verifyPanelId = draft.config?.roles?.verifyPanelId ?? null;
@@ -245,6 +250,63 @@ export function SelfRolesModule({ draft, meta, call, refresh, toast }: ModuleAct
       toast(e instanceof Error ? e.message : "Failed to install the verification panel.", "err");
     } finally {
       setVerifyBusy(false);
+    }
+  }
+
+  // v4.4.0: restyle the LIVE verify button — PUT selfroles/:id with the full
+  // roles array (bot v4.2.1). Parity with /set-verify-button: label/emoji/style
+  // change without delete + reinstall; the button's TARGET role never moves.
+  function openBtnEdit() {
+    const entry = verifyPanel?.roles?.[0];
+    setBtnEdit({
+      label: entry?.label ?? "Verify Me",
+      emoji: entry?.emoji ?? "",
+      style: entry?.style ?? "Success",
+    });
+    setBtnOpen(btnOpen ? false : true);
+  }
+
+  async function saveVerifyButton() {
+    if (!verifyPanel || !verifyPanelId) return;
+    const label = btnEdit.label.trim();
+    if (!label) {
+      toast("The button label cannot be empty.", "err");
+      return;
+    }
+    if (label.length > 80) {
+      toast("The button label must be at most 80 characters.", "err");
+      return;
+    }
+    const emoji = btnEdit.emoji.trim();
+    if (emoji.length > 64) {
+      toast("The emoji must be at most 64 characters (e.g. ✅ or <:name:id>).", "err");
+      return;
+    }
+    const entry = verifyPanel.roles?.[0];
+    if (!entry) {
+      toast("The verification panel has no role entry — reinstall it.", "err");
+      return;
+    }
+    setBtnBusy(true);
+    try {
+      await call(`selfroles/${verifyPanelId}`, "PUT", {
+        roles: [
+          {
+            ...entry,
+            label,
+            ...(emoji ? { emoji } : {}),
+            style: btnEdit.style,
+          },
+        ],
+        actor: { id: "web", tag: "web dashboard" },
+      });
+      setBtnOpen(false);
+      await refresh();
+      toast("Verify button restyled — the Discord panel was re-rendered.");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Failed to restyle the verify button.", "err");
+    } finally {
+      setBtnBusy(false);
     }
   }
 
@@ -357,6 +419,60 @@ export function SelfRolesModule({ draft, meta, call, refresh, toast }: ModuleAct
               While the Verified role is set, tickets & escrow accept verified members only. Edit the panel below — deleting it also clears the
               Verified role (reinstall here anytime).
             </p>
+            {/* v4.4.0: the live button — restyle without reinstall (≙ /set-verify-button). */}
+            <div className="flex flex-wrap items-center gap-2 pt-1">
+              <span className="inline-flex items-center gap-1.5 rounded-lg border border-dgreen/30 bg-dgreen/10 px-2.5 py-1 text-[11px] text-dtx-2">
+                {verifyPanel.roles?.[0]?.emoji ? <span>{verifyPanel.roles[0].emoji}</span> : null}
+                {verifyPanel.roles?.[0]?.label ?? "Verify Me"}
+                <span className="text-dtx-4">·</span>
+                <span className="text-dtx-3">{verifyPanel.roles?.[0]?.style ?? "Success"}</span>
+              </span>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={openBtnEdit}
+                className="h-7 border-white/[0.1] bg-transparent px-2.5 text-[11px] text-dtx-2 hover:bg-dbg-3 hover:text-dtx-0"
+              >
+                <Pencil className="h-3 w-3" aria-hidden="true" />
+                Restyle button
+              </Button>
+            </div>
+            {btnOpen ? (
+              <div className="mt-3 grid gap-3 rounded-xl border border-white/[0.06] bg-dbg-1/60 p-4 md:grid-cols-3">
+                <Field label="Button Label" hint="1-80 characters — the text members see.">
+                  <TextInput value={btnEdit.label} onChange={(v) => setBtnEdit((s) => ({ ...s, label: v }))} placeholder="Verify Me" />
+                </Field>
+                <Field label="Emoji" hint="e.g. ✅ or <:name:id> — empty = none.">
+                  <TextInput value={btnEdit.emoji} onChange={(v) => setBtnEdit((s) => ({ ...s, emoji: v }))} placeholder="✅" />
+                </Field>
+                <Field label="Style" hint="The button color on Discord.">
+                  <Select
+                    value={btnEdit.style}
+                    onChange={(v) => setBtnEdit((s) => ({ ...s, style: v }))}
+                    options={[
+                      { value: "Primary", label: "Blue (Primary)" },
+                      { value: "Secondary", label: "Gray (Secondary)" },
+                      { value: "Success", label: "Green (Success)" },
+                      { value: "Danger", label: "Red (Danger)" },
+                    ]}
+                  />
+                </Field>
+                <div className="md:col-span-3">
+                  <Button
+                    onClick={saveVerifyButton}
+                    disabled={btnBusy}
+                    className="w-full bg-dgreen text-white hover:bg-dgreen-dark font-semibold"
+                  >
+                    {btnBusy ? (
+                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <Pencil className="h-4 w-4" aria-hidden="true" />
+                    )}
+                    Save Button — re-renders the panel on Discord
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : (
           <div className="mt-4 grid gap-4 md:grid-cols-3">

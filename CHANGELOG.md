@@ -6,6 +6,18 @@ Legend: 🔴 critical · 🟠 high · 🟡 medium · 🟢 improvement
 
 > **History note.** This repository was born in **v4.1.0**, when the Thor-EN project was split into two separate repositories (CUT & MOVE — no cloning). The FULL project history (v3.9.0 – v4.1.0, including every change that shaped this dashboard before the split) lives in the [Thor-EN bot repository's CHANGELOG](https://github.com/dwisetyabudi15581/Thor-EN/blob/main/CHANGELOG.md).
 
+## [4.4.0] — 2026-09-24
+
+### 🌐 CHRONOS PARITY (TAHAP 2, SISI DASHBOARD): VERIFIKASI DIATUR PENUH DARI WEB
+
+Melengkapi bot v4.2.0/v4.2.1 (verifikasi klasik dipulihkan + DASH API `PUT selfroles` menerima `roles`): dashboard kini punya kembaran lengkap kedua command klasik itu.
+
+- 🟠 **Restyle tombol verifikasi dari web** (modul Self Roles): saat panel verifikasi terpasang, kartu ✅ Verification kini menampilkan **tombol live** (emoji · label · style saat ini) + tombol **"Restyle button"** — form Label / Emoji / Style (Blue/Gray/Green/Red) yang tersimpan via `PUT selfroles/:id` dengan array `roles`, dan panel di Discord **langsung ter-render ulang**. Kembaran `/set-verify-button`: ganti tampilan tanpa hapus + pasang ulang; role target tombol tidak pernah berubah. Validasi client (label 1–80, emoji ≤64) + validasi ulang di bot (400 presisi).
+- 🟡 **Field "Verified Role" di modul General** (bagian Key Roles): set/hapus `roles.verified` langsung dari web — kembaran `/set-role verified`. Catatan di hint: selama terisi, ticket & escrow hanya menerima member terverifikasi.
+- 🟢 **Catatan versi bot minimum**: restyle tombol butuh bot **v4.2.1+** (field `roles` di PUT selfroles). Bot lama menolak dengan pesan 400 yang jelas — tidak ada crash, hanya toast error.
+
+**Compatibility:** tidak ada perubahan kontrak API; hanya field body baru yang opsional. Versi: 4.3.1 → **4.4.0**.
+
 ## [4.3.1] — 2026-09-24
 
 ### 🔧 Invite button fix — a blank NEXT_PUBLIC_INVITE_URL opened a duplicate tab
