@@ -1,0 +1,45 @@
+// Postgres flavour of the Prisma schema — for CLOUD HOSTING (Vercel + Neon /
+// Supabase / any managed Postgres).
+//
+// Why two schemas? The provider must be a literal in Prisma (it cannot be
+// switched via an env var), and this dashboard runs in two worlds:
+//   - Local / VPS / CI: SQLite (prisma/schema.prisma, DATABASE_URL=file:...)
+//     — zero-install, the file lives next to the repo.
+//   - Serverless hosting (Vercel): the filesystem is EPHEMERAL — a SQLite
+//     file would be wiped on every cold start (users "logged out", tokens
+//     lost). There the DATABASE_URL is a postgres:// URL and the client MUST
+//     be generated from THIS schema: a client generated from the SQLite
+//     schema cannot talk to Postgres.
+//
+// The switch is AUTOMATIC: scripts/build.mjs and scripts/db.mjs detect a
+// postgres:// DATABASE_URL and pass --schema prisma/schema.postgres.prisma.
+//
+// ⚠️ KEEP IN SYNC: the models below must stay identical to schema.prisma.
+// The fields are plain scalars (String/Boolean/DateTime) so both providers
+// accept the same definitions — when you add a field, add it to BOTH files.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Dashboard users — identity from Discord OAuth (or demo mode during setup)
+model User {
+  id          String   @id @default(cuid())
+  discordId   String   @unique
+  username    String
+  globalName  String?
+  avatar      String?
+  isAdmin     Boolean  @default(false)
+  // v2 (web dashboard): the user's OAuth token (identify+guilds
+  // scope) — used by /api/guilds for the server list + ManageGuild check.
+  accessToken  String?
+  refreshToken String?
+  tokenExpiresAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

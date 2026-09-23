@@ -6,6 +6,19 @@ Legend: 🔴 critical · 🟠 high · 🟡 medium · 🟢 improvement
 
 > **History note.** This repository was born in **v4.1.0**, when the Thor-EN project was split into two separate repositories (CUT & MOVE — no cloning). The FULL project history (v3.9.0 – v4.1.0, including every change that shaped this dashboard before the split) lives in the [Thor-EN bot repository's CHANGELOG](https://github.com/dwisetyabudi15581/Thor-EN/blob/main/CHANGELOG.md).
 
+## [4.2.0] — 2026-09-23
+
+### 🚀 Vercel-ready — deploy the dashboard to the cloud with your own domain
+
+Prepared the repository for production hosting on **Vercel** (serverless Next.js) with the owner's domain `thormarket.site` (registrar: Domainesia). The dashboard deploys natively — no `vercel.json`, no framework adapters — and **local/VPS/Termux workflows are completely unchanged**.
+
+- 🟠 **Postgres support (cloud database).** SQLite cannot persist on serverless hosting (ephemeral filesystem — wiped on every cold start), so the user database must live in the cloud when hosted on Vercel. Added `prisma/schema.postgres.prisma` — the Postgres flavour of the schema (Prisma's provider is a schema literal and cannot be switched via env). `scripts/build.mjs` and `scripts/db.mjs` now detect a `postgres://` DATABASE_URL and automatically pass `--schema prisma/schema.postgres.prisma`; SQLite (unset/`file:` URL) keeps the default schema, so CI, local dev and the VPS flow behave exactly as before.
+- 🟠 **DEPLOY-VERCEL.md (new).** The complete production guide: Neon Postgres setup (pooled vs direct connection strings), one-time `db push`, Vercel project import + the full environment-variable table, custom-domain attach with the exact DNS records for Domainesia (A `@` + CNAME `www`), the Discord OAuth2 redirect registration, exposing the bot's DASH API through a cloudflared tunnel, a 5-point verification checklist, a troubleshooting table, and security notes.
+- 🟡 **README + `.env.example` updated.** New "Production on Vercel" section (why Postgres, why the tunnel, link to the guide); the env template now documents both DATABASE_URL shapes (SQLite local / Postgres cloud), the `PUBLIC_ORIGIN=https://thormarket.site` example, and the tunnel form of `DASH_API_URL`.
+- 🟢 **Bridge note made explicit.** On Vercel the dashboard can no longer reach `127.0.0.1` — the bot's DASH API (Thor-EN repo, default `127.0.0.1:8788`) is reached through a public cloudflared tunnel while still being protected by the shared `DASH_API_TOKEN`. The bot itself NEVER runs on Vercel (long-running process) — only the dashboard does.
+
+**Compatibility:** zero changes to app code, routes, or UI — only build/tooling scripts gained an automatic Postgres branch, plus new docs. SQLite users: nothing to do. Version: 4.1.0 → **4.2.0**.
+
 ## [4.1.0] — 2026-09-23
 
 ### Born — 🏗️ REPOSITORY SPLIT: THE DASHBOARD BECOMES ITS OWN REPOSITORY

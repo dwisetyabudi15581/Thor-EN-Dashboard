@@ -60,11 +60,26 @@ npm run start             # :3000
 >
 > 24/7 production (pm2): `pm2 start ecosystem.config.cjs` — app name `thor-dash`. Full guide: [Thor-EN/DEPLOY.md](https://github.com/dwisetyabudi15581/Thor-EN/blob/main/DEPLOY.md).
 
+### Production on Vercel (free, with your own domain)
+
+The dashboard deploys natively to **Vercel** (Next.js + serverless): import the repo,
+set the environment variables, attach the domain — done. Two things change in that world:
+
+- **Database:** SQLite cannot persist on serverless hosting → `DATABASE_URL` becomes a
+  cloud **Postgres** URL (Neon free tier). The build/db scripts detect a `postgres://`
+  URL and automatically switch to `prisma/schema.postgres.prisma` — local SQLite dev is
+  unaffected.
+- **Bot bridge:** the dashboard on Vercel can no longer reach `127.0.0.1` → the bot's
+  DASH API is exposed through a public **cloudflared tunnel** on the bot's host.
+
+Full step-by-step (Neon → Vercel → domain DNS → OAuth redirect → tunnel → checklist):
+**[DEPLOY-VERCEL.md](./DEPLOY-VERCEL.md)**
+
 ### Important variables (`.env`)
 
 | Variable                                      | Description                                                                                         |
 | --------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                                | SQLite, e.g. `file:db/custom.db` — dashboard users only (bot data lives in the Thor-EN repo)        |
+| `DATABASE_URL`                                | SQLite (`file:db/custom.db`) locally, or a cloud Postgres URL on Vercel — see [DEPLOY-VERCEL.md](./DEPLOY-VERCEL.md) |
 | `SESSION_SECRET`                              | Random string (`openssl rand -hex 32`)                                                              |
 | `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` | OAuth2 from the Developer Portal (same application as the bot)                                      |
 | `PUBLIC_ORIGIN`                               | Production domain, e.g. `https://thor.yourdomain.com`                                               |
@@ -83,7 +98,7 @@ The OAuth redirect URI to register in the Developer Portal (built from `PUBLIC_O
 | `npm run start`        | Start the production server (:3000)                                |
 | `npm run mock`         | Fake DASH API with demo data — explore the UI without the bot      |
 | `npm run lint`         | ESLint check                                                       |
-| `npm run db:push`      | Apply the Prisma schema to the SQLite database                     |
+| `npm run db:push`      | Apply the Prisma schema (SQLite locally; auto-switches to the Postgres schema for `postgres://` URLs) |
 | `npm run db:studio`    | Prisma Studio (browse the users table)                             |
 
 CI (GitHub Actions) runs the production build on every push (Node 22).

@@ -32,7 +32,17 @@ if (raw.startsWith("file:") && !raw.startsWith("file:/")) {
   url = "file:" + path.resolve(process.cwd(), raw.slice(5));
 }
 
-const res = spawnSync("npx", ["prisma", ...args], {
+// v4.2.0 — Postgres (cloud hosting: Vercel + Neon/Supabase): when
+// DATABASE_URL is a postgres:// URL, prisma MUST operate on the Postgres
+// flavour of the schema (prisma/schema.postgres.prisma) — e.g. pushing the
+// User table to a cloud DB before the first Vercel deploy. SQLite (the
+// default) is untouched.
+const schemaArgs =
+  /^postgres(ql)?:\/\//.test(url) || url.startsWith("postgres:")
+    ? ["--schema", "prisma/schema.postgres.prisma"]
+    : [];
+
+const res = spawnSync("npx", ["prisma", ...args, ...schemaArgs], {
   stdio: "inherit",
   env: { ...process.env, DATABASE_URL: url },
 });

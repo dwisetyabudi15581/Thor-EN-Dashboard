@@ -32,7 +32,23 @@ function run(command) {
   execSync(command, { stdio: "inherit", cwd: root, env: { ...process.env, PATH } });
 }
 
-run("prisma generate");
+// v4.2.0 — Postgres (cloud hosting: Vercel + Neon/Supabase): when
+// DATABASE_URL is a postgres:// URL the client MUST be generated from the
+// Postgres flavour of the schema (prisma/schema.postgres.prisma) — a client
+// generated from the SQLite schema cannot talk to Postgres. SQLite stays the
+// default (unset/empty/file: URL) so CI and local/VPS dev are unchanged.
+const rawDbUrl = process.env.DATABASE_URL ?? "";
+const usePostgres =
+  /^postgres(ql)?:\/\//.test(rawDbUrl) || rawDbUrl.startsWith("postgres:");
+if (usePostgres) {
+  console.log("Postgres DATABASE_URL detected — generating the client from prisma/schema.postgres.prisma");
+}
+
+run(
+  usePostgres
+    ? "prisma generate --schema prisma/schema.postgres.prisma"
+    : "prisma generate",
+);
 
 if (isAndroid) {
   console.log("Android (Termux) detected — building with Webpack (Turbopack is unavailable on Android).");
