@@ -6,6 +6,18 @@ Legend: 🔴 critical · 🟠 high · 🟡 medium · 🟢 improvement
 
 > **History note.** This repository was born in **v4.1.0**, when the Thor-EN project was split into two separate repositories (CUT & MOVE — no cloning). The FULL project history (v3.9.0 – v4.1.0, including every change that shaped this dashboard before the split) lives in the [Thor-EN bot repository's CHANGELOG](https://github.com/dwisetyabudi15581/Thor-EN/blob/main/CHANGELOG.md).
 
+## [4.3.1] — 2026-09-24
+
+### 🔧 Invite button fix — a blank NEXT_PUBLIC_INVITE_URL opened a duplicate tab
+
+**Symptom (production):** clicking **Invite** on the Server Picker opened a new tab showing the dashboard itself (a duplicate of the current page) instead of the Discord authorization flow.
+
+- 🔴 **Root cause: `config.ts` used `??` for `NEXT_PUBLIC_INVITE_URL`.** An env var that was *created but left blank* in Vercel resolves to the empty string — which is **not** `undefined`, so the nullish-coalescing operator did NOT fall back to the built-in invite URL. The API then shipped `inviteUrl: ""`, and `<a href="" target="_blank">` resolves to the *current* page URL — hence the duplicate tab. Fixed by routing the value through the existing `envOr()` helper (empty/whitespace string ⇒ fallback), the same convention every other env value in `config.ts` already follows.
+- 🟡 **Belt-and-suspenders in `app/page.tsx`:** the Invite anchor now uses `data?.inviteUrl || "#"` (logical OR, catching empty strings too) instead of `??` — even a future regression in the API can no longer produce a self-duplicating link.
+- 🟢 **Verified before shipping:** the default URL's `client_id` resolves to the real public "Thor" application (`bot_public: true`, scopes `bot+applications.commands`) — the link is valid as-is.
+
+**Compatibility:** no API/route/schema changes. If you had set `NEXT_PUBLIC_INVITE_URL` in Vercel, it may now be deleted — the built-in default is correct. Version: 4.3.0 → **4.3.1**.
+
 ## [4.3.0] — 2026-09-23
 
 ### ⚡ Response caching — dashboard latency over the cloudflared tunnel

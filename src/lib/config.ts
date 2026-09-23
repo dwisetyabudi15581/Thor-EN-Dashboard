@@ -25,9 +25,14 @@ export const cfg = {
     .filter(Boolean),
 
   // Bot invite link (default: the owner's Thor, least-privilege permissions)
-  inviteUrl:
-    process.env.NEXT_PUBLIC_INVITE_URL ??
-    "https://discord.com/oauth2/authorize?client_id=1548297613969985546&permissions=1099800112150&integration_type=0&scope=bot+applications.commands",
+  // v4.3.1: envOr, not ?? — an EMPTY NEXT_PUBLIC_INVITE_URL (an env var
+  // created but left blank in Vercel) previously produced inviteUrl: "" →
+  // <a href="" target="_blank"> opened a duplicate of the current page
+  // instead of the Discord authorize flow. Empty must mean "use the default".
+  inviteUrl: envOr(
+    "NEXT_PUBLIC_INVITE_URL",
+    "https://discord.com/oauth2/authorize?client_id=1548297613969985546&permissions=1099800112150&integration_type=0&scope=bot+applications.commands"
+  ),
 
   // v3.16.0: DASH API — a small HTTP server inside the bot process
   // (web dashboard). All server config reads/writes are routed

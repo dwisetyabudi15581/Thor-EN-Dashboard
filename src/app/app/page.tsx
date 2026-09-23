@@ -345,7 +345,9 @@ export default function ServerPickerPage() {
                     <p className="truncate text-sm font-medium text-dtx-1">{g.name}</p>
                     <p className="mt-0.5 text-xs text-dtx-3">Bot not invited yet</p>
                   </div>
-                  <a href={data?.inviteUrl ?? "#"} target="_blank" rel="noreferrer" className="shrink-0">
+                  {/* v4.3.1: || not ?? — an empty-string inviteUrl must not
+                      produce href="" (a duplicate of the current page). */}
+                  <a href={data?.inviteUrl || "#"} target="_blank" rel="noreferrer" className="shrink-0">
                     <Button
                       size="sm"
                       variant="outline"
