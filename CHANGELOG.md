@@ -6,6 +6,18 @@ Legend: 🔴 critical · 🟠 high · 🟡 medium · 🟢 improvement
 
 > **History note.** This repository was born in **v4.1.0**, when the Thor-EN project was split into two separate repositories (CUT & MOVE — no cloning). The FULL project history (v3.9.0 – v4.1.0, including every change that shaped this dashboard before the split) lives in the [Thor-EN bot repository's CHANGELOG](https://github.com/dwisetyabudi15581/Thor-EN/blob/main/CHANGELOG.md).
 
+## [4.3.0] — 2026-09-23
+
+### ⚡ Response caching — dashboard latency over the cloudflared tunnel
+
+Production measured the full chain (browser → Vercel HKG → Cloudflare tunnel → the bot on a phone over mobile data) at ~0.3–1s per bot round trip, and the UI polls `/api/bot-status` every 15s in step with data auto-refresh — so the same rarely-changing data was re-fetched over the tunnel again and again. This release adds a server-side response cache so most reads now answer in ~0ms without touching the tunnel, while writes stay always-fresh.
+
+- 🟠 **TTL cache + single-flight in `bot-api.ts`.** GETs to the DASH API now flow through a cache layer: `/health` (10s), the bot's `/guilds` list (20s), and per-user `/users/{id}/guilds` membership (30s) are TTL-cached; concurrent identical GETs share ONE in-flight request (single-flight) instead of queuing separate tunnel round trips; and a `BotOfflineError` is negative-cached for 4s so the 15s poll cannot hammer the tunnel while the bot is down. Mutations (POST/PUT/DELETE) bypass the cache and CLEAR it on success — the read after a save always reflects the just-written state. The cache lives in module memory (per serverless instance, bounded at 200 keys) — no external state, no invalidation coordination needed.
+- 🟡 **Per-user cache for the OAuth guild list (`discord-guilds.ts`).** `getManageableGuilds` hit Discord REST (+ possible token refresh) on every `/api/guilds` call; ok:true results are now cached 30s per user. Only successful results are cached — error reasons (`no-token` / `relogin`) surface immediately.
+- 🟢 **Zero API changes.** Same routes, same response shapes, same `.env` — the cache is invisible to the UI. Users on localhost/VPS get the same benefit when the dashboard and bot talk over a real network.
+
+**Compatibility:** no schema, route, or UI changes — server internals only. Local SQLite workflows unaffected. Version: 4.2.0 → **4.3.0**.
+
 ## [4.2.0] — 2026-09-23
 
 ### 🚀 Vercel-ready — deploy the dashboard to the cloud with your own domain

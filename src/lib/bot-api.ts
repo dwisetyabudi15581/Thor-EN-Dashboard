@@ -37,9 +37,72 @@ type BotApiOptions = {
   timeoutMs?: number;
 };
 
-/** Call the bot DASH API. Throws BotOfflineError when unreachable. */
-export async function botApi<T = unknown>(pathname: string, opts: BotApiOptions = {}): Promise<T> {
-  const { method = "GET", body, timeoutMs = 8000 } = opts;
+// ----------------------------------------------------------------------------
+// v4.3.0: response cache + single-flight for GET calls.
+//
+// WHY: in the production topology (Vercel → cloudflared tunnel → the bot on
+// the owner's phone) every botApi() GET is a ~0.3–1s round trip over a mobile
+// link. The UI polls /api/bot-status every 15s AND auto-refreshes data in
+// step with it, so the same endpoints were re-fetched over the tunnel again
+// and again. Three mechanisms, all server-side only (the browser never sees
+// stale data older than the TTLs below):
+//   1. TTL cache for rarely-changing reads (/health, /guilds, user guild
+//      lists) — a cache HIT answers in ~0ms without touching the tunnel.
+//   2. Single-flight: concurrent identical GETs (e.g. /health from
+//      /api/bot-status and /api/guilds firing together) share ONE in-flight
+//      request instead of queuing two tunnel round trips.
+//   3. Negative cache: a BotOfflineError is remembered for a few seconds so
+//      a poll storm cannot hammer the tunnel while the bot is down.
+// Mutations (POST/PUT/DELETE) bypass the cache and CLEAR it on success — a
+// successful write means every cached read is now stale, so the next read
+// always reflects the just-saved state. The cache is per serverless
+// instance (module memory) — safe by construction, bounded by CACHE_MAX_KEYS.
+// ----------------------------------------------------------------------------
+
+const CACHE_TTL_MS = {
+  /** Bot health — polled every 15s; pingMs/uptime are cosmetic, 10s staleness is invisible. */
+  health: 10_000,
+  /** The bot's guild list — changes only when the bot joins/leaves a server. */
+  botGuilds: 20_000,
+  /** Per-user guild membership (RBAC tiers) — changes only on role/leave events. */
+  userGuilds: 30_000,
+  /** How long a BotOfflineError is replayed before retrying the tunnel. */
+  offline: 4_000,
+} as const;
+
+const CACHE_MAX_KEYS = 200;
+
+type CachedRead =
+  | { kind: "value"; expiresAt: number; value: unknown }
+  | { kind: "offline"; expiresAt: number };
+
+const valueCache = new Map<string, CachedRead>();
+const inflight = new Map<string, Promise<unknown>>();
+
+/** Which GET paths are TTL-cacheable, and for how long. null = not cached. */
+function cacheKeyFor(pathname: string): { key: string; ttlMs: number } | null {
+  if (pathname === "/health") return { key: pathname, ttlMs: CACHE_TTL_MS.health };
+  if (pathname === "/guilds") return { key: pathname, ttlMs: CACHE_TTL_MS.botGuilds };
+  if (/^\/users\/[^/]+\/guilds$/.test(pathname)) return { key: pathname, ttlMs: CACHE_TTL_MS.userGuilds };
+  return null;
+}
+
+function pruneValueCache(): void {
+  if (valueCache.size <= CACHE_MAX_KEYS) return;
+  const now = Date.now();
+  for (const [k, entry] of valueCache) {
+    if (entry.expiresAt <= now) valueCache.delete(k);
+  }
+  if (valueCache.size > CACHE_MAX_KEYS) valueCache.clear(); // hard cap fallback
+}
+
+/** The raw single call — the pre-v4.3.0 botApi body, unchanged. */
+async function rawBotApi<T>(
+  pathname: string,
+  method: "GET" | "POST" | "PUT" | "DELETE",
+  body: unknown,
+  timeoutMs: number
+): Promise<T> {
   // v3.28.3: an unconfigured DASH_API_URL makes fetch() throw a cryptic
   // "Failed to parse URL" — classify it as offline up front (the same state
   // the rest of the code already handles gracefully).
@@ -97,6 +160,67 @@ export async function botApi<T = unknown>(pathname: string, opts: BotApiOptions 
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * Call the bot DASH API (v4.3.0 caching wrapper over rawBotApi).
+ * GETs: TTL cache + single-flight (see the cache block above for the design).
+ * Writes: pass through, then clear the read cache — post-save reads must see
+ * the just-written state.
+ * Throws BotOfflineError when unreachable.
+ */
+export async function botApi<T = unknown>(pathname: string, opts: BotApiOptions = {}): Promise<T> {
+  const { method = "GET", body, timeoutMs = 8000 } = opts;
+
+  if (method !== "GET" || body !== undefined) {
+    const result = await rawBotApi<T>(pathname, method, body, timeoutMs);
+    // A successful write invalidates every cached read — bot state changed.
+    valueCache.clear();
+    return result;
+  }
+
+  const cacheable = cacheKeyFor(pathname);
+  if (cacheable) {
+    pruneValueCache();
+    const hit = valueCache.get(cacheable.key);
+    if (hit && hit.expiresAt > Date.now()) {
+      if (hit.kind === "value") return hit.value as T;
+      throw new BotOfflineError(); // negative-cached offline (fresh retry soon)
+    }
+  }
+
+  // Single-flight: an identical GET already in flight is awaited, not re-fired.
+  const existing = inflight.get(pathname);
+  if (existing) return existing as Promise<T>;
+
+  const promise = rawBotApi<T>(pathname, "GET", undefined, timeoutMs)
+    .then((value) => {
+      if (cacheable) {
+        valueCache.set(cacheable.key, {
+          kind: "value",
+          expiresAt: Date.now() + cacheable.ttlMs,
+          value,
+        });
+      }
+      return value;
+    })
+    .catch((err) => {
+      if (cacheable && err instanceof BotOfflineError) {
+        // Negative cache — replay "offline" for a few seconds instead of
+        // hammering the tunnel on every 15s poll while the bot is down.
+        valueCache.set(cacheable.key, {
+          kind: "offline",
+          expiresAt: Date.now() + CACHE_TTL_MS.offline,
+        });
+      }
+      throw err;
+    })
+    .finally(() => {
+      inflight.delete(pathname);
+    });
+
+  inflight.set(pathname, promise as Promise<unknown>);
+  return promise;
 }
 
 /** Check bot health without throwing (for the status banner). */

@@ -16,6 +16,18 @@ import { cfg } from "./config";
 
 const MANAGE_GUILD = 0x20;
 
+// v4.3.0: short per-user cache for the OAuth guild list. WHY: the Server
+// Picker re-requests /api/guilds on every auto-refresh (15s) and every
+// navigation, but a user's Discord guild membership changes rarely — each
+// uncached call is a full Discord REST round trip (plus a possible token
+// refresh) on the request's critical path. 30s staleness is invisible for a
+// server picker (inviting the bot takes far longer than that). Only
+// ok:true results are cached — error reasons (relogin etc.) must surface
+// immediately. Bounded: hard-cleared when the map grows past CACHE_MAX_USERS.
+const GUILD_LIST_TTL_MS = 30_000;
+const CACHE_MAX_USERS = 200;
+const guildListCache = new Map<string, { expiresAt: number; guilds: UserGuild[] }>();
+
 // v3.28.3: every Discord.com fetch now goes through a timeout wrapper — a
 // hung connection (blackholed route) previously hung /api/guilds, every
 // guild-scoped request (via checkGuildAccess) and the OAuth callback
@@ -98,6 +110,12 @@ export type GuildListResult =
  * asks to re-login). If the refresh fails (token revoked) → "relogin".
  */
 export async function getManageableGuilds(userId: string): Promise<GuildListResult> {
+  // v4.3.0: fresh cache HIT skips both the DB token read and the Discord call.
+  const cached = guildListCache.get(userId);
+  if (cached && cached.expiresAt > Date.now()) {
+    return { ok: true, guilds: cached.guilds };
+  }
+
   const row: TokenRow | null = await db.user.findUnique({
     where: { id: userId },
     select: { id: true, accessToken: true, refreshToken: true, tokenExpiresAt: true },
@@ -150,6 +168,10 @@ export async function getManageableGuilds(userId: string): Promise<GuildListResu
     })
     .filter((g) => g.manageable)
     .sort((a, b) => a.name.localeCompare(b.name));
+
+  // v4.3.0: remember the ok:true result for GUILD_LIST_TTL_MS (bounded map).
+  if (guildListCache.size > CACHE_MAX_USERS) guildListCache.clear();
+  guildListCache.set(userId, { expiresAt: Date.now() + GUILD_LIST_TTL_MS, guilds });
 
   return { ok: true, guilds };
 }
