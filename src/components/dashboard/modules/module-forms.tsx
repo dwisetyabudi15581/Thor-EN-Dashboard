@@ -25,10 +25,6 @@ export type ModuleFormProps = {
   meta: GuildMeta;
   setConfig: (dotPath: string, value: unknown) => void;
   setAutomod: (patch: Partial<AutoModConfig>) => void;
-  // v3.24.1 FIX (5.1): dedicated setter for the auto-role join list — writes
-  // autorole.roleIds into the DRAFT but queues the whole-array `autorole`
-  // update for the bot wire (see guild-dashboard.tsx for the split reasoning).
-  setAutoroleRoleIds: (roleIds: string[]) => void;
   toast: (msg: string, tone?: "ok" | "err") => void;
   // v3.24.0: direct actions for forms that need a dedicated endpoint (e.g. the
   // "Test Welcome" button in the General module → POST welcome-test).
@@ -41,9 +37,10 @@ export type ModuleFormProps = {
 };
 
 /* ============================================================
- * MODULE: General (roles, channels, messages, auto-role on join, colors)
- * v3.22.0: the verify button section was REPLACED by the Auto-Role editor
- * (parity with /set-autorole) and the Unverified marker explanation.
+ * MODULE: General (roles, channels, messages, colors)
+ * v4.5.0: the Auto-Role editor was REMOVED (bot v4.3.0 deleted the feature —
+ * CHRONOS parity). The new-member marker is the classic Unverified role
+ * picker (parity with /set-role tipe:unverified), next to the Verified role.
  * ============================================================ */
 
 const TEMPLATE_VARS = (
@@ -56,10 +53,8 @@ const TEMPLATE_VARS = (
   </span>
 );
 
-export function GeneralModule({ draft, meta, setConfig, setAutoroleRoleIds, call, refresh, toast, viewer }: ModuleFormProps) {
+export function GeneralModule({ draft, meta, setConfig, call, refresh, toast, viewer }: ModuleFormProps) {
   const c = draft.config;
-  // v3.22.0: local picker state for the auto-role list editor.
-  const [autorolePick, setAutorolePick] = useState<string | null>(null);
   // v3.24.0: Test Welcome/Goodbye buttons — POST welcome-test (parity with
   // /test-welcome): diagnosis + send the REAL embed to the configured channel.
   const [testing, setTesting] = useState<string | null>(null);
@@ -108,26 +103,9 @@ export function GeneralModule({ draft, meta, setConfig, setAutoroleRoleIds, call
     }
   }
 
-  const autoroleIds = c.autorole?.roleIds ?? [];
-  // v3.23.0: the "join roles removed on another role" toggle —
-  // replacement for the removed Unverified marker concept.
-  const removeOnNewRole = c.autorole?.removeOnNewRole ?? false;
-
-  // v3.24.1 FIX (5.1): route Add/Remove through setAutoroleRoleIds (draft keeps
-  // the { roleIds, removeOnNewRole } object; the wire update stays a whole
-  // array). The old setConfig("autorole", array) corrupted the draft.
-  const addAutorole = () => {
-    if (!autorolePick || autoroleIds.includes(autorolePick)) return;
-    setAutoroleRoleIds([...autoroleIds, autorolePick]);
-    setAutorolePick(null);
-  };
-  const removeAutorole = (id: string) => {
-    setAutoroleRoleIds(autoroleIds.filter((r) => r !== id));
-  };
-
   return (
     <div className="space-y-5">
-      <Section title="Key Roles" desc="The bot admin role. Pick from the server's role list.">
+      <Section title="Key Roles" desc="The bot's system roles. Pick from the server's role list.">
         <Field label="Bot Admin Role" hint="Holders of this role can use every admin command on this server.">
           <RoleSelect value={c.roles.admin ?? null} onChange={(v) => setConfig("roles.admin", v)} roles={meta.roles} />
         </Field>
@@ -137,46 +115,13 @@ export function GeneralModule({ draft, meta, setConfig, setAutoroleRoleIds, call
         <Field label="Verified Role" hint="Granted by the verification panel button. While set, tickets & escrow accept verified members only (≙ /set-role verified).">
           <RoleSelect value={c.roles.verified ?? null} onChange={(v) => setConfig("roles.verified", v)} roles={meta.roles} />
         </Field>
-      </Section>
-
-      <Section title="Auto-Role on Join" desc="Roles granted automatically to every new member (≙ /set-autorole, max 10). Turn the toggle below on if you want them gone once the member gets another role.">
-        <div className="md:col-span-2">
-          <div className="flex flex-wrap gap-2">
-            {autoroleIds.length === 0 ? (
-              <span className="text-xs text-dtx-3">No join roles yet — add one below (e.g. @Member, or @Unverified as a new-member marker).</span>
-            ) : (
-              autoroleIds.map((id) => (
-                <span key={id} className="flex items-center gap-1 rounded-lg border border-white/[0.1] bg-dbg-1/60 px-2.5 py-1 text-xs text-dtx-2">
-                  <span className="text-dtx-3">@</span>
-                  {meta.roles.find((r) => r.id === id)?.name ?? id}
-                  <button type="button" onClick={() => removeAutorole(id)} className="ml-1 text-dtx-3 hover:text-dred" aria-label="Remove role">×</button>
-                </span>
-              ))
-            )}
-          </div>
-        </div>
-        <Field label="Add a role to the join list" hint={`${autoroleIds.length}/10 roles`}>
-          <div className="flex gap-2">
-            <RoleSelect value={autorolePick} onChange={setAutorolePick} roles={meta.roles} placeholder="— pick a role —" />
-            <Button
-              type="button"
-              onClick={addAutorole}
-              disabled={!autorolePick || autoroleIds.includes(autorolePick) || autoroleIds.length >= 10}
-              className="shrink-0 bg-blurple font-semibold text-white hover:bg-blurple-dark"
-            >
-              <Plus className="h-4 w-4" aria-hidden="true" />
-              Add
-            </Button>
-          </div>
+        {/* v4.5.0: the Unverified marker (CHRONOS parity — bot v4.3.0 deleted
+            the auto-role join list). Granted automatically on join, removed
+            automatically the moment the member verifies (≙ /set-role
+            tipe:unverified). */}
+        <Field label="Unverified Role (new-member marker)" hint="Granted automatically on join, removed automatically when the member verifies. Pair it with the verification panel (Actions module). ≙ /set-role unverified">
+          <RoleSelect value={c.roles.unverified ?? null} onChange={(v) => setConfig("roles.unverified", v)} roles={meta.roles} />
         </Field>
-        <div className="md:col-span-2">
-          <Toggle
-            checked={removeOnNewRole}
-            onChange={(v) => setConfig("autorole.removeOnNewRole", v)}
-            label="Remove join roles when the member gets another role"
-            desc="While ON: EVERY role in the list above is stripped automatically once the member receives any other role (self-role panels, level rewards, admin grants, other bots…). Perfect for a new-member marker role. While OFF: join roles are permanent."
-          />
-        </div>
       </Section>
 
       <Section title="System Channels" desc="Where the bot's automatic messages are sent.">

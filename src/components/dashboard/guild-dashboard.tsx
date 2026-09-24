@@ -428,9 +428,7 @@ export function GuildDashboard({ guildId }: { guildId: string }) {
     if (opts?.preserveDraft && hasPending) {
       nextDraft = structuredClone(nextDraft);
       for (const [p, v] of Object.entries(pending)) {
-        // The autorole wire update is a whole array; the draft path is the
-        // roleIds member (v3.24.1 draft/wire split).
-        setPath(nextDraft.config as unknown as Record<string, unknown>, p === "autorole" && Array.isArray(v) ? "autorole.roleIds" : p, v);
+        setPath(nextDraft.config as unknown as Record<string, unknown>, p, v);
       }
       if (Object.keys(pendingAutomod).length > 0) {
         nextDraft.automod = { ...nextDraft.automod, ...pendingAutomod };
@@ -527,23 +525,6 @@ export function GuildDashboard({ guildId }: { guildId: string }) {
       return { ...d, automod: { ...d.automod, ...patch } };
     });
     setAutomodPatch((p) => ({ ...p, ...patch }));
-  }, []);
-
-  // v3.24.1 FIX (5.1): the Auto-Role editor needs a draft-path / wire-path split.
-  // The draft stores autorole = { roleIds: string[], removeOnNewRole: boolean },
-  // but the bot's wire update is { autorole: roleIds[] } (a whole array — see
-  // dashServer's SECTION_VALIDATORS). The old call setConfig("autorole", array)
-  // replaced the DRAFT OBJECT with a plain array → roleIds became undefined →
-  // the chips list instantly reset, removeOnNewRole displayed OFF, and a second
-  // Add silently dropped the first role from the pending update.
-  const setAutoroleRoleIds = useCallback((roleIds: string[]) => {
-    setDraft((d) => {
-      if (!d) return d;
-      const next: DashboardPayload = structuredClone(d);
-      setPath(next.config as unknown as Record<string, unknown>, "autorole.roleIds", roleIds);
-      return next;
-    });
-    setConfigUpdates((u) => ({ ...u, autorole: roleIds }));
   }, []);
 
   // ---- Direct actions (CRUD) ----
@@ -716,8 +697,8 @@ export function GuildDashboard({ guildId }: { guildId: string }) {
   );
 
   const formProps: ModuleFormProps | null = useMemo(
-    () => (draft && meta ? { draft, meta, setConfig, setAutomod, setAutoroleRoleIds, toast: showToast, call, refresh, viewer } : null),
-    [draft, meta, setConfig, setAutomod, setAutoroleRoleIds, showToast, call, refresh, viewer]
+    () => (draft && meta ? { draft, meta, setConfig, setAutomod, toast: showToast, call, refresh, viewer } : null),
+    [draft, meta, setConfig, setAutomod, showToast, call, refresh, viewer]
   );
   const actionProps: ModuleActionProps | null = useMemo(
     () => (draft && meta ? { draft, meta, call, refresh, toast: showToast } : null),

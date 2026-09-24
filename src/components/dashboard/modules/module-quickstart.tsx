@@ -11,16 +11,17 @@
 // parity with the slash commands:
 //
 //   Step 1  Bot Admin Role          ≙ /set-role admin
-//   Step 2  Auto-Role on Join       ≙ /set-autorole             (v3.23.0)
+//   Step 2  Unverified Marker        ≙ /set-role unverified       (v4.5.0)
 //   Step 3  Categories & Products   ≙ /add-category + /add-product
 //   Step 4  Install Ticket Panel    ≙ /setup-ticket-panel
 //   Step 5  Self-Role Panel         ≙ /setup-selfrole           (v3.22.0)
 //   Step 6  Server Log Channel      ≙ /set-channel server-log
 //
-// v3.23.0: the Unverified marker concept was REMOVED — Step 2 is now purely
-// auto-role on join + the "join roles removed once the member gets another
-// role" toggle (the Unverified replacement); Step 5 sends the admin to the
-// Self Roles module to mount a panel (e.g. a Verification panel).
+// v4.5.0: the auto-role join list + toggle were REMOVED (bot v4.3.0 deleted
+// the feature — CHRONOS parity). Step 2 is the CLASSIC new-member marker:
+// /set-role tipe:unverified — granted automatically on join, removed
+// automatically the moment the member verifies. Step 5 sends the admin to
+// the Self Roles module to mount a panel (e.g. the Verification panel).
 //
 // Below that: "Next steps" — shortcuts to the other category modules
 // (serverstats / leveling / tempvoice / responder / selfrole) so the web
@@ -33,7 +34,7 @@ import { useState, type ReactNode } from "react";
 import { CheckCircle2, Circle, Loader2, Plus, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
-  Field, TextInput, Select, ChannelSelect, RoleSelect, Pill, Toggle, channelLabel, roleLabel,
+  Field, TextInput, Select, ChannelSelect, RoleSelect, Pill, channelLabel, roleLabel,
 } from "../fields";
 import type { ModuleActionProps } from "./module-actions";
 
@@ -103,8 +104,8 @@ export function QuickStartModule({
   // Steps 1-2: roles (dropdown + manual ID field — initial value = saved one)
   const [adminPick, setAdminPick] = useState<string | null>(c.roles.admin ?? null);
   const [adminId, setAdminId] = useState("");
-  const [joinPick, setJoinPick] = useState<string | null>(null);
-  const [joinId, setJoinId] = useState("");
+  const [markerPick, setMarkerPick] = useState<string | null>(c.roles.unverified ?? null);
+  const [markerId, setMarkerId] = useState("");
 
   // Step 3: quick product add
   const [prdLabel, setPrdLabel] = useState("");
@@ -128,7 +129,7 @@ export function QuickStartModule({
 
   const done = {
     admin: !!c.roles.admin,
-    autorole: (c.autorole?.roleIds?.length ?? 0) > 0,
+    unverified: !!c.roles.unverified,
     catalog: products.length > 0,
     panel: panels.length > 0,
     selfrole: selfrolePanels.length > 0,
@@ -177,37 +178,6 @@ export function QuickStartModule({
       return;
     }
     void applyUpdates(step, { [dotPath]: v }, okMsg);
-  }
-
-  /** Step 2: add a role to the join auto-role list (whole array, duplicate-safe). */
-  function applyJoinRole(pick: string | null, manualId: string) {
-    const v = manualId.trim() || pick || "";
-    if (!v) {
-      toast("Pick a role from the list or paste its ID first.", "err");
-      return;
-    }
-    if (!SNOWFLAKE_RE.test(v)) {
-      toast("Invalid role ID — 5-25 digits. Enable Developer Mode in Discord, right-click the role → Copy ID.", "err");
-      return;
-    }
-    const current = c.autorole?.roleIds ?? [];
-    if (current.includes(v)) {
-      toast("That role is already in the auto-role list.", "err");
-      return;
-    }
-    void applyUpdates("autorole", { autorole: [...current, v] }, "Join role registered — every new member now receives it automatically.");
-  }
-
-  /** Step 2: flip the "remove join roles on another role" toggle. */
-  function toggleRemoveOnNewRole() {
-    const next = !(c.autorole?.removeOnNewRole ?? false);
-    void applyUpdates(
-      "autoroleToggle",
-      { "autorole.removeOnNewRole": next },
-      next
-        ? "Toggle ON — join roles disappear automatically once the member gets another role."
-        : "Toggle OFF — join roles are permanent."
-    );
   }
 
   async function installTicketPanel() {
@@ -320,36 +290,33 @@ export function QuickStartModule({
         </Field>
       </StepCard>
 
-      {/* Step 2 — Auto-role on join + toggle (v3.23.0) */}
+      {/* Step 2 — New-member marker (v4.5.0: classic Unverified — CHRONOS parity) */}
       <StepCard
         n={2}
-        title="Auto-Role on Join"
-        desc={<>Roles granted automatically to every new member. Turn the toggle below on if you want them gone once the member gets any other role (self-role, level role, admin grant) — the Unverified replacement, with no separate setup. ≙ <code className="text-blurple-soft">/set-autorole</code></>}
-        done={done.autorole}
+        title="Unverified Role (new-member marker)"
+        desc={<>New members receive this role automatically when they join, and it is removed automatically the moment they verify — the classic CHRONOS chain. Optional, but recommended with the verification panel. ≙ <code className="text-blurple-soft">/set-role unverified</code></>}
+        done={done.unverified}
       >
-        <Field label="Pick from the role list" hint={done.autorole ? `Saved: ${(c.autorole?.roleIds ?? []).map((id) => roleLabel(meta.roles, id)).join(", ")}` : undefined}>
-          <RoleSelect value={joinPick} onChange={setJoinPick} roles={meta.roles} />
+        <Field label="Pick from the role list" hint={done.unverified ? `Saved: ${roleLabel(meta.roles, c.roles.unverified)}` : undefined}>
+          <RoleSelect value={markerPick} onChange={setMarkerPick} roles={meta.roles} />
         </Field>
         <Field label="…or enter the role ID manually" hint={ID_HINT}>
           <div className="flex gap-2">
-            <TextInput value={joinId} onChange={setJoinId} placeholder="e.g. 888000111222333444" />
+            <TextInput value={markerId} onChange={setMarkerId} placeholder="e.g. 888000111222333444" />
             <Button
-              onClick={() => applyJoinRole(joinPick, joinId)}
-              disabled={busy === "autorole"}
+              onClick={() => applyRole("unverified", "roles.unverified", markerPick, markerId, "Unverified role registered — granted on join, removed on verify.")}
+              disabled={busy === "unverified"}
               className="shrink-0 bg-blurple font-semibold text-white hover:bg-blurple-dark"
             >
-              {busy === "autorole" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
+              {busy === "unverified" ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : null}
               Register
             </Button>
           </div>
         </Field>
         <div className="md:col-span-2">
-          <Toggle
-            checked={c.autorole?.removeOnNewRole ?? false}
-            onChange={() => toggleRemoveOnNewRole()}
-            label="Remove join roles when the member gets another role"
-            desc="ON: every role in the list is stripped automatically once the member receives any other role — perfect for a new-member marker. OFF: join roles are permanent."
-          />
+          <p className="text-[11px] text-dtx-4">
+            Pair it with the verification panel (Actions module or Step 5) — the verify click grants the Verified role and strips this marker in one move.
+          </p>
         </div>
       </StepCard>
 

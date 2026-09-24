@@ -6,6 +6,20 @@ Legend: 🔴 critical · 🟠 high · 🟡 medium · 🟢 improvement
 
 > **History note.** This repository was born in **v4.1.0**, when the Thor-EN project was split into two separate repositories (CUT & MOVE — no cloning). The FULL project history (v3.9.0 – v4.1.0, including every change that shaped this dashboard before the split) lives in the [Thor-EN bot repository's CHANGELOG](https://github.com/dwisetyabudi15581/Thor-EN/blob/main/CHANGELOG.md).
 
+## [4.5.0] — 2026-09-24
+
+### 🗑️ CHRONOS PARITY (TAHAP 3, SISI DASHBOARD): MODUL AUTO-ROLE DIHAPUS · PENANDA UNVERIFIED KLASIK DIPULIHKAN
+
+Mengikuti bot **v4.3.0** (owner: *"Auto rolenya delete saja soalnya ga terlalu butuh samain kaya di CHRONOS"*): seluruh UI join auto-role dihapus dan digantikan penanda klasik — **satu role**, diberikan saat join, hilang otomatis saat member verifikasi.
+
+- 🔴 **Modul General: editor "Auto-Role on Join" DIHAPUS** (chips list + picker + toggle "remove on a new role"). Penggantinya: field **"Unverified Role (new-member marker)"** di bagian Key Roles — kembaran `/set-role tipe:unverified`, satu picker role, tanpa list/toggle. Draft/wire split khusus autorole (`setAutoroleRoleIds`) ikut dihapus — tidak lagi dibutuhkan karena `roles.unverified` adalah path config biasa.
+- 🔴 **Quick Start: Step 2 "Auto-Role on Join" → "Unverified Role (new-member marker)"** — dropdown role + field ID manual → apply langsung (`roles.unverified`), dengan catatan memasangkannya dengan panel verifikasi. Progress 6 langkah tetap, `done` key berganti `unverified`.
+- 🟠 **Overview: Quick Toggle "Auto-Role on Join" → "Unverified Marker"** — flip ON memunculkan picker role (apply instan `roles.unverified`), OFF menghapus dengan konfirmasi + restore satu-klik pada kunjungan yang sama. Status label menampilkan nama role + "removed on verify".
+- 🟡 **Tipe `GuildConfig.autorole` dihapus dari `bot-api.ts`** (v4.3.0 bot menghapus section-nya + membersihkan config lama saat load). Landing page: kartu fitur "Auto-Role" menjadi "Verification" (tombol verifikasi satu arah + penanda klasik).
+- 🟢 **Catatan versi bot minimum**: butuh bot **v4.3.0+** (`roles.unverified` diterima API; `PUT autorole` dijawab 422 "Unknown section"). Bot v4.2.x + dashboard v4.5.0 = field Verified tetap jalan, editor Unverified tersimpan tanpa efek sampai bot di-update.
+
+**Compatibility:** kontrak API tidak berubah bentuk — hanya section `autorole` yang hilang (bot lama tetap aman dipakai; toggle/hint yang menyentuhnya sudah bersih). Versi: 4.4.0 → **4.5.0**.
+
 ## [4.4.0] — 2026-09-24
 
 ### 🌐 CHRONOS PARITY (TAHAP 2, SISI DASHBOARD): VERIFIKASI DIATUR PENUH DARI WEB

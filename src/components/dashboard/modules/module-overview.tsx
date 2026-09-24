@@ -6,11 +6,11 @@
 //   1. SUMMARY CARDS — the numbers an admin actually checks daily:
 //      Total Members · Commands Executed · Bot Uptime · Total Messages.
 //   2. QUICK TOGGLES — big green/red switches for the main modules
-//      (Auto-Mod, Welcome Message, Economy & Leveling, Auto-Role on Join).
+//      (Auto-Mod, Welcome Message, Economy & Leveling, Unverified Marker).
 //      These are INSTANT: one click PUTs straight to the bot (no draft, no
 //      SaveBar) and the payload refreshes right after — the module turns on
 //      or off on Discord immediately, exactly like flipping a switch.
-//      When a toggle needs a target (welcome channel / join role) the card
+//      When a toggle needs a target (welcome channel / marker role) the card
 //      expands an inline picker instead of guessing.
 //   3. MODULE STATUS — every other module as a one-glance on/off row that
 //      jumps straight to its configuration page when clicked.
@@ -133,19 +133,21 @@ function ToggleCard({ icon: Icon, title, desc, on, busy, statusLabel, onToggle, 
 export function ModuleOverview({ draft, meta, botStatus, call, refresh, toast, goTo }: OverviewProps) {
   const c = draft.config;
   const [busyToggle, setBusyToggle] = useState<string | null>(null);
-  // Which card is in "pick a target" mode (welcome channel / join role).
-  const [pickerFor, setPickerFor] = useState<"welcome" | "autorole" | null>(null);
+  // Which card is in "pick a target" mode (welcome channel / marker role).
+  const [pickerFor, setPickerFor] = useState<"welcome" | "unverified" | null>(null);
   const [pickChannel, setPickChannel] = useState<string | null>(null);
   const [pickRole, setPickRole] = useState<string | null>(null);
-  // Remember the channel/roles a toggle just cleared, so flipping back ON is
+  // Remember the channel/role a toggle just cleared, so flipping back ON is
   // still one click during the same visit.
   const lastWelcomeChannel = useRef<string | null>(null);
-  const lastAutoroleIds = useRef<string[]>([]);
+  const lastUnverifiedRole = useRef<string | null>(null);
 
   const welcomeChannel = c.channels.welcome ?? null;
   const welcomeOn = Boolean(welcomeChannel);
-  const autoroleIds = c.autorole?.roleIds ?? [];
-  const autoroleOn = autoroleIds.length > 0;
+  // v4.5.0: the classic Unverified marker (CHRONOS parity — bot v4.3.0 deleted
+  // the auto-role join list). One role: granted on join, removed on verify.
+  const unverifiedRole = c.roles.unverified ?? null;
+  const markerOn = Boolean(unverifiedRole);
   const levelingOn = c.leveling?.enabled === true;
   const automodOn = draft.automod?.enabled === true;
 
@@ -196,22 +198,27 @@ export function ModuleOverview({ draft, meta, botStatus, call, refresh, toast, g
     await applyInstant("welcome", "config", "PUT", { updates: { "channels.welcome": null } }, "Welcome messages are OFF.");
   }
 
-  /* ---- Auto-Role toggle (target = the join role list) ---- */
-  async function toggleAutorole(on: boolean) {
+  /* ---- Unverified marker toggle (target = roles.unverified, v4.5.0) ---- */
+  async function toggleUnverified(on: boolean) {
     if (on) {
-      if (lastAutoroleIds.current.length > 0) {
-        const restore = lastAutoroleIds.current;
-        await applyInstant("autorole", "config", "PUT", { updates: { autorole: restore } }, "Auto-role is ON.");
+      if (unverifiedRole) {
+        await applyInstant("unverified", "config", "PUT", { updates: { "roles.unverified": unverifiedRole } }, "The Unverified marker is ON.");
         return;
       }
-      setPickerFor(pickerFor === "autorole" ? null : "autorole"); // pick a role
+      // Restoring a role cleared earlier this visit = still one click.
+      if (lastUnverifiedRole.current) {
+        const restore = lastUnverifiedRole.current;
+        await applyInstant("unverified", "config", "PUT", { updates: { "roles.unverified": restore } }, "The Unverified marker is ON.");
+        return;
+      }
+      setPickerFor(pickerFor === "unverified" ? null : "unverified"); // pick a role
       return;
     }
-    if (!window.confirm(`Remove all ${autoroleIds.length} join role${autoroleIds.length > 1 ? "s" : ""}? New members will stop receiving them.`)) {
+    if (!window.confirm("Remove the Unverified marker? New members will stop receiving it on join.")) {
       return;
     }
-    lastAutoroleIds.current = autoroleIds;
-    await applyInstant("autorole", "config", "PUT", { updates: { autorole: [] } }, "Auto-role is OFF.");
+    lastUnverifiedRole.current = unverifiedRole;
+    await applyInstant("unverified", "config", "PUT", { updates: { "roles.unverified": null } }, "The Unverified marker is OFF.");
   }
 
   /* ---- Module status rows (everything else) ---- */
@@ -349,36 +356,36 @@ export function ModuleOverview({ draft, meta, botStatus, call, refresh, toast, g
             }
           />
 
-          {/* Auto-Role on Join */}
+          {/* Verification marker (v4.5.0: classic Unverified — CHRONOS parity) */}
           <ToggleCard
             icon={Users}
-            title="Auto-Role on Join"
-            desc="Roles granted automatically to every new member."
-            on={autoroleOn}
-            busy={busyToggle === "autorole"}
+            title="Unverified Marker"
+            desc="New members get the role on join; the verify click removes it."
+            on={markerOn}
+            busy={busyToggle === "unverified"}
             statusLabel={
-              autoroleOn
-                ? `${autoroleIds.length} join role${autoroleIds.length > 1 ? "s" : ""} · ${meta.roles.filter((r) => autoroleIds.includes(r.id)).map((r) => `@${r.name}`).slice(0, 2).join(", ") || "roles set"}`
-                : "no roles on join"
+              markerOn
+                ? `@${meta.roles.find((r) => r.id === unverifiedRole)?.name ?? "role set"} · removed on verify`
+                : "no marker on join"
             }
-            onToggle={() => void toggleAutorole(!autoroleOn)}
+            onToggle={() => void toggleUnverified(!markerOn)}
           >
-            {pickerFor === "autorole" ? (
+            {pickerFor === "unverified" ? (
               <div className="flex flex-wrap items-center gap-2">
-                <span className="text-[11px] text-dtx-3">First join role:</span>
+                <span className="text-[11px] text-dtx-3">Marker role:</span>
                 <div className="min-w-0 flex-1">
                   <RoleSelect value={pickRole} onChange={setPickRole} roles={meta.roles} placeholder="— pick a role —" />
                 </div>
                 <button
                   type="button"
-                  disabled={!pickRole || busyToggle === "autorole"}
+                  disabled={!pickRole || busyToggle === "unverified"}
                   onClick={() =>
                     void applyInstant(
-                      "autorole",
+                      "unverified",
                       "config",
                       "PUT",
-                      { updates: { autorole: [pickRole] } },
-                      "Auto-role is ON."
+                      { updates: { "roles.unverified": pickRole } },
+                      "The Unverified marker is ON."
                     )
                   }
                   className="shrink-0 rounded-lg bg-blurple px-3 py-2 text-[12px] font-semibold text-white transition-colors hover:bg-blurple-dark disabled:opacity-50"
