@@ -6,6 +6,18 @@ Legend: 🔴 critical · 🟠 high · 🟡 medium · 🟢 improvement
 
 > **History note.** This repository was born in **v4.1.0**, when the Thor-EN project was split into two separate repositories (CUT & MOVE — no cloning). The FULL project history (v3.9.0 – v4.1.0, including every change that shaped this dashboard before the split) lives in the [Thor-EN bot repository's CHANGELOG](https://github.com/dwisetyabudi15581/Thor-EN/blob/main/CHANGELOG.md).
 
+## [4.6.0] — 2026-09-24
+
+### 🌐 CHRONOS PARITY (TAHAP 4, SISI DASHBOARD): TEKS PANEL VERIFIKASI DIATUR DARI WEB — `messages.verifyTitle` / `verifyBody`
+
+Melengkapi bot **v4.4.0** (teks panel verifikasi klasik dipulihkan sebagai config — copy persis dari CHRONOS v3.9.59, plus re-render panel live saat teks berubah): dashboard kini punya editornya. Owner: *"Biar lebih simple ga belibet kamu tinggal copy code dari repo CHRONOS terus di paste ke Thor-EN dan nanti tinggal sesuaikan lagi dashboard nya."*
+
+- 🟠 **Kartu ✅ Verification (modul Self Roles): tombol "Edit panel text"** — muncul saat panel terpasang, di samping "Restyle button". Form **Panel Title** (1–256 char) + **Panel Description** (multi-baris, ≤4000 char) dengan hint placeholder `{server}`. Prefill dari **config** (`messages.verifyTitle`/`verifyBody` — sumber kebenaran ala CHRONOS); kalau key-nya kosong (bot < v4.4.0 atau belum pernah diatur), fallback ke teks panel yang sedang live — admin selalu mengedit apa yang dilihatnya.
+- 🟠 **Simpan = `PUT /guilds/:id/config`** dengan `updates: { messages.verifyTitle, messages.verifyBody }` — kontrak yang sama dengan `/set-message` dari Discord. Bot v4.4.0 lalu menyinkronkan panel + **me-render ulang pesan di Discord secara instan** (lebih baik dari CHRONOS — di sana perubahan hanya berlaku untuk install berikutnya). Validasi client (judul wajib ≤256, body ≤4000) + validasi ulang di bot.
+- 🟢 **Tipe `GuildConfig.messages`** diberi catatan verifyTitle/verifyBody (tipe sudah `Record<string, string>` — tidak ada perubahan bentuk). Catatan versi bot minimum di footer kartu: teks panel butuh **bot v4.4.0+**; bot lama menolak dengan 400/422 yang jelas — tidak crash, hanya toast error.
+
+**Compatibility:** tidak ada perubahan kontrak API — hanya field config yang hidup kembali di sisi bot. Bot v4.2.x–v4.3.x + dashboard v4.6.0 tetap aman (semua fitur lain jalan; editor teks menunggu bot di-update). Versi: 4.5.0 → **4.6.0**.
+
 ## [4.5.0] — 2026-09-24
 
 ### 🗑️ CHRONOS PARITY (TAHAP 3, SISI DASHBOARD): MODUL AUTO-ROLE DIHAPUS · PENANDA UNVERIFIED KLASIK DIPULIHKAN

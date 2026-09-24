@@ -282,6 +282,9 @@ export type LevelRole = { level: number; roleId: string };
 export type GuildConfig = {
   roles: Record<string, string | null>;
   channels: Record<string, string | null>;
+  // v4.6.0: messages.verifyTitle / verifyBody are BACK (bot v4.4.0 — classic
+  // CHRONOS verify panel text; the live panel re-renders from them). The
+  // {server} placeholder is resolved by the bot.
   messages: Record<string, string>;
   colors: Record<string, number>;
   // v3.22.0: verifyButton REMOVED — verification is now a self-role panel.

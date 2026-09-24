@@ -1,6 +1,6 @@
 {
   "name": "thor-dashboard",
-  "version": "4.5.0",
+  "version": "4.6.0",
   "private": true,
   "description": "Thor-EN-Dashboard \u2014 the standalone WEB DASHBOARD repository for the Thor Discord bot (the separate Thor-EN repository). Next.js 16 + Prisma (SQLite via DATABASE_URL) + Discord OAuth2 login; talks to the bot ONLY through its DASH API (HTTP + the shared DASH_API_TOKEN). Web-only dependencies \u2014 no discord.js, no bot handlers.",
   "scripts": {

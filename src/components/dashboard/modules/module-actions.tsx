@@ -8,7 +8,7 @@
 // DASH API, followed by refresh() to pull the payload from the bot again.
 
 import { useState } from "react";
-import { Plus, Trash2, Loader2, RefreshCw, Clock, ExternalLink, Pencil } from "lucide-react";
+import { Plus, Trash2, Loader2, RefreshCw, Clock, ExternalLink, Pencil, Type } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Field, Section, TextInput, TextArea, Toggle, Select, ChannelSelect, RoleSelect, MentionSelect, Pill, channelLabel, roleLabel as roleLabelFn,
@@ -184,6 +184,13 @@ export function SelfRolesModule({ draft, meta, call, refresh, toast }: ModuleAct
   const [btnOpen, setBtnOpen] = useState(false);
   const [btnEdit, setBtnEdit] = useState({ label: "", emoji: "", style: "Success" });
   const [btnBusy, setBtnBusy] = useState(false);
+  // v4.6.0: edit the LIVE verify panel TEXT from the web — PUT config
+  // messages.verifyTitle/verifyBody (bot v4.4.0 re-renders the panel).
+  // The CHRONOS contract: the text is CONFIG (≙ /set-message), {server} is
+  // resolved by the bot at render/sync time.
+  const [textOpen, setTextOpen] = useState(false);
+  const [textEdit, setTextEdit] = useState({ title: "", body: "" });
+  const [textBusy, setTextBusy] = useState(false);
 
   // The installed verification panel (config.roles.verifyPanelId → live panel).
   const verifyPanelId = draft.config?.roles?.verifyPanelId ?? null;
@@ -307,6 +314,55 @@ export function SelfRolesModule({ draft, meta, call, refresh, toast }: ModuleAct
       toast(e instanceof Error ? e.message : "Failed to restyle the verify button.", "err");
     } finally {
       setBtnBusy(false);
+    }
+  }
+
+  // v4.6.0: edit the LIVE verify panel text (PUT config messages.verifyTitle/
+  // verifyBody — bot v4.4.0 syncs + re-renders the panel). Prefill from the
+  // CONFIG (the CHRONOS source of truth); when the keys are empty (bot < v4.4.0
+  // or never set), fall back to the live panel text so the admin edits what
+  // they currently SEE.
+  function openTextEdit() {
+    const cfgTitle = draft.config?.messages?.verifyTitle ?? "";
+    const cfgBody = draft.config?.messages?.verifyBody ?? "";
+    setTextEdit({
+      title: cfgTitle || verifyPanel?.title || "✅ SERVER VERIFICATION",
+      body: cfgBody || verifyPanel?.description || "Welcome to **{server}**!",
+    });
+    setTextOpen(textOpen ? false : true);
+  }
+
+  async function saveVerifyText() {
+    const title = textEdit.title.trim();
+    if (!title) {
+      toast("The panel title cannot be empty.", "err");
+      return;
+    }
+    if (title.length > 256) {
+      toast("The title must be at most 256 characters.", "err");
+      return;
+    }
+    const body = textEdit.body;
+    if (body.length > 4000) {
+      toast("The description must be at most 4000 characters.", "err");
+      return;
+    }
+    setTextBusy(true);
+    try {
+      await call("config", "PUT", {
+        updates: {
+          "messages.verifyTitle": title,
+          "messages.verifyBody": body,
+        },
+        actor: { id: "web", tag: "web dashboard" },
+      });
+      setTextOpen(false);
+      await refresh();
+      toast("Panel text saved — the Discord panel was re-rendered.");
+    } catch (e) {
+      toast(e instanceof Error ? e.message : "Failed to save the panel text.", "err");
+    } finally {
+      setTextBusy(false);
     }
   }
 
@@ -436,6 +492,17 @@ export function SelfRolesModule({ draft, meta, call, refresh, toast }: ModuleAct
                 <Pencil className="h-3 w-3" aria-hidden="true" />
                 Restyle button
               </Button>
+              {/* v4.6.0: the panel TEXT — edit from the web (≙ /set-message
+                  verifyTitle/verifyBody; bot v4.4.0 re-renders the live panel). */}
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={openTextEdit}
+                className="h-7 border-white/[0.1] bg-transparent px-2.5 text-[11px] text-dtx-2 hover:bg-dbg-3 hover:text-dtx-0"
+              >
+                <Type className="h-3 w-3" aria-hidden="true" />
+                Edit panel text
+              </Button>
             </div>
             {btnOpen ? (
               <div className="mt-3 grid gap-3 rounded-xl border border-white/[0.06] bg-dbg-1/60 p-4 md:grid-cols-3">
@@ -471,6 +538,43 @@ export function SelfRolesModule({ draft, meta, call, refresh, toast }: ModuleAct
                     Save Button — re-renders the panel on Discord
                   </Button>
                 </div>
+              </div>
+            ) : null}
+            {/* v4.6.0: the panel text editor — the CHRONOS contract (config is
+                the source of truth, {server} resolved by the bot). */}
+            {textOpen ? (
+              <div className="mt-3 space-y-3 rounded-xl border border-white/[0.06] bg-dbg-1/60 p-4">
+                <Field label="Panel Title" hint="1-256 characters — the embed heading (no newline).">
+                  <TextInput
+                    value={textEdit.title}
+                    onChange={(v) => setTextEdit((s) => ({ ...s, title: v }))}
+                    placeholder="✅ SERVER VERIFICATION"
+                  />
+                </Field>
+                <Field label="Panel Description" hint="Use {server} for the server name — the bot replaces it on the panel (multi-line ok).">
+                  <TextArea
+                    value={textEdit.body}
+                    onChange={(v) => setTextEdit((s) => ({ ...s, body: v }))}
+                    rows={5}
+                    placeholder="Welcome to **{server}**!&#10;&#10;Click the button below to get verified and gain full access to all channels."
+                  />
+                </Field>
+                <Button
+                  onClick={saveVerifyText}
+                  disabled={textBusy}
+                  className="w-full bg-dgreen text-white hover:bg-dgreen-dark font-semibold"
+                >
+                  {textBusy ? (
+                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
+                  ) : (
+                    <Type className="h-4 w-4" aria-hidden="true" />
+                  )}
+                  Save Panel Text — re-renders the panel on Discord
+                </Button>
+                <p className="text-[11px] text-dtx-4">
+                  Same text as <span className="text-dtx-3">/set-message verifyTitle / verifyBody</span> — saved to the bot config, and the live
+                  panel re-renders instantly (needs bot v4.4.0+).
+                </p>
               </div>
             ) : null}
           </div>
