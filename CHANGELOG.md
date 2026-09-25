@@ -6,6 +6,19 @@ Legend: 🔴 critical · 🟠 high · 🟡 medium · 🟢 improvement
 
 > **History note.** This repository was born in **v4.1.0**, when the Thor-EN project was split into two separate repositories (CUT & MOVE — no cloning). The FULL project history (v3.9.0 – v4.1.0, including every change that shaped this dashboard before the split) lives in the [Thor-EN bot repository's CHANGELOG](https://github.com/dwisetyabudi15581/Thor-EN/blob/main/CHANGELOG.md).
 
+## [4.7.0] — 2026-09-25
+
+### 🔗 SINKRON PENUH DASHBOARD ↔ BOT v4.4.x: TIGA FIELD TERAKHIR YANG HANYA BISA DARI DISCORD
+
+Audit kontrak DASH API dua arah terhadap bot v4.4.1 (semua route bot vs semua `call()` dashboard, whitelist `SECTION_VALIDATORS` vs field UI): dashboard sudah memakai **36+ endpoint** bot (termasuk `verify-panel`, `booster-test`, `welcome-test`, `serverstats/refresh`) — tapi masih ada **3 setting yang hanya bisa diatur lewat slash command**, padahal bot menerima semuanya di `PUT /config` sejak lama. Ketiganya ditambahkan sekarang; ini menutup celah terakhir — setiap `/set-role` + `/set-channel` tipe kini punya kembarannya di web.
+
+- 🟠 **General → Key Roles: kolom "Midman Role (Escrow)"** (`roles.midman` ≙ `/set-role midman`) — member yang memegang role ini bisa menjadi pihak tengah (middleman) di transaksi jaminat (escrow) 3 pihak. Sebelumnya hanya bisa dari Discord; modul Middleman hanya mengatur fee & kategori channel.
+- 🟠 **General → Key Roles: kolom "Booster Role (auto on boost)"** (`roles.booster` ≙ `/set-role booster`) — diberikan otomatis saat member melakukan boost server, dicabut saat boost berakhir. Modul Statistics & tombol test-booster sudah ada; kolom role-nya yang hilang. **Pasangan bot v4.4.2**: menyimpan kolom ini dari web kini juga menerapkan role secara **retroaktif** ke semua member yang sedang boosting (perilaku persis `/set-role booster`) — pada bot v4.4.1 dan sebelumnya, role hanya berlaku untuk boost berikutnya/restart.
+- 🟡 **General → System Channels: kolom "Audit Log Channel"** (`channels.audit-log` ≙ `/set-channel audit-log`) — log **tindakan admin** (produk, kunci/VIP, perubahan role/channel, pemasangan panel), berbeda dari Server Log yang mencatat aktivitas member (pesan terhapus, join/leave, ban). Ini satu-satunya tipe `/set-channel` yang belum punya kolom web.
+- 🟢 **Tidak ada perubahan kontrak API / tipe** — `roles` dan `channels` memang `Record<string, string | null>` generik; ketiga kolom hanya memanfaatkan validator generik yang sudah ada di sisi bot. Bot lama (≤ v4.4.1) tetap aman: field tersimpan dan tampil, retroaktif booster menunggu restart bot. Hint pada setiap kolom menyebut pasangan slash command-nya — semantics yang sama, mudah dicocokkan dengan `/config-show`.
+
+**Kompatibilitas:** bot v4.4.2+ = perilaku penuh (retroaktif booster instan). Versi: 4.6.0 → **4.7.0**.
+
 ## [4.6.0] — 2026-09-24
 
 ### 🌐 CHRONOS PARITY (TAHAP 4, SISI DASHBOARD): TEKS PANEL VERIFIKASI DIATUR DARI WEB — `messages.verifyTitle` / `verifyBody`

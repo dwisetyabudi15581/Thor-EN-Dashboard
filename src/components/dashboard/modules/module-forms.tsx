@@ -122,6 +122,20 @@ export function GeneralModule({ draft, meta, setConfig, call, refresh, toast, vi
         <Field label="Unverified Role (new-member marker)" hint="Granted automatically on join, removed automatically when the member verifies. Pair it with the verification panel (Actions module). ≙ /set-role unverified">
           <RoleSelect value={c.roles.unverified ?? null} onChange={(v) => setConfig("roles.unverified", v)} roles={meta.roles} />
         </Field>
+        {/* v4.7.0 (bot sync): the two remaining /set-role types that were only
+            reachable from Discord — midman + booster. The bot's DASH API has
+            accepted roles.midman / roles.booster all along (generic roles.*
+            validator); the dashboard simply had no field for them. */}
+        <Field label="Midman Role (Escrow)" hint="Members holding this role can act as the escrow middleman in a 3-party deal (≙ /set-role midman).">
+          <RoleSelect value={c.roles.midman ?? null} onChange={(v) => setConfig("roles.midman", v)} roles={meta.roles} />
+        </Field>
+        {/* v4.7.0: booster auto-role — the bot grants it when a member boosts
+            and removes it when the boost ends. Bot v4.4.2+ applies it
+            retroactively to everyone currently boosting the moment it is
+            saved here (the exact /set-role booster behavior). */}
+        <Field label="Booster Role (auto on boost)" hint="Granted automatically when a member boosts the server, removed when the boost ends. Saving here also applies it to everyone currently boosting (bot v4.4.2+, ≙ /set-role booster).">
+          <RoleSelect value={c.roles.booster ?? null} onChange={(v) => setConfig("roles.booster", v)} roles={meta.roles} />
+        </Field>
       </Section>
 
       <Section title="System Channels" desc="Where the bot's automatic messages are sent.">
@@ -145,6 +159,12 @@ export function GeneralModule({ draft, meta, setConfig, call, refresh, toast, vi
         </Field>
         <Field label="Ticket Transcript Channel" hint="Chat archive of closed tickets (≙ /set-channel transcript).">
           <ChannelSelect value={c.channels.transcript ?? null} onChange={(v) => setConfig("channels.transcript", v)} channels={meta.channels} />
+        </Field>
+        {/* v4.7.0 (bot sync): the last /set-channel type with no web field —
+            the admin ACTION log (products, keys, role/channel changes),
+            distinct from the server-log's member-side events. */}
+        <Field label="Audit Log Channel" hint="Admin action log — product/key/role/channel changes and panel installs (≙ /set-channel audit-log). Distinct from the Server Log (member-side events).">
+          <ChannelSelect value={c.channels["audit-log"] ?? null} onChange={(v) => setConfig("channels.audit-log", v)} channels={meta.channels} />
         </Field>
       </Section>
 
